@@ -1,0 +1,2219 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Control de Gastos — Ingresos/Egresos (EUR)</title>
+
+    <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#089fe6">
+
+
+  <!-- ===========================
+       Chart.js (CDN)
+       Si querés 100% offline: descargá chart.umd.min.js y reemplazá el src.
+  ============================ -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* =========================================================
+       CONTROL DE GASTOS — ESTILO MINIMAL (Blanco + Celeste)
+       Todo en 1 HTML (LocalStorage + Export/Import JSON)
+    ========================================================== */
+
+    :root{
+      --bg: #f6fbff;
+      --surface: #ffffff;
+      --text: #0f1a2a;
+      --muted: #617089;
+      --line: rgba(30, 90, 140, .12);
+
+      --sky-50:#eef9ff;
+      --sky-100:#dff3ff;
+      --sky-200:#bfe8ff;
+      --sky-400:#54c7ff;
+      --sky-600:#089fe6;
+      --sky-700:#067db6;
+
+      --good:#0ea77a;
+      --bad:#d84b4b;
+
+      --radius-xl: 22px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+      --radius-sm: 12px;
+
+      --shadow: 0 14px 30px rgba(10, 50, 90, .08);
+      --shadow-soft: 0 10px 22px rgba(10, 50, 90, .06);
+
+      --pad: 16px;
+      --pad-lg: 20px;
+
+      --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
+    }
+
+    *{ box-sizing: border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(8,159,230,.14), transparent 50%),
+        radial-gradient(900px 500px at 90% -10%, rgba(84,199,255,.12), transparent 55%),
+        var(--bg);
+    }
+
+    /* ===========================
+       LAYOUT
+    ============================ */
+    .wrap{
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 18px 16px 40px;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      background: rgba(255,255,255,.75);
+      backdrop-filter: blur(10px);
+      box-shadow: var(--shadow-soft);
+      position: sticky;
+      top: 10px;
+      z-index: 50;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap: 12px;
+      min-width: 240px;
+    }
+    .logo{
+      width: 42px; height: 42px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--sky-100), rgba(255,255,255,.9));
+      border: 1px solid var(--line);
+      box-shadow: 0 10px 20px rgba(8,159,230,.12);
+      display:grid;
+      place-items:center;
+      color: var(--sky-700);
+      font-weight: 800;
+      letter-spacing:.5px;
+      user-select:none;
+    }
+    .brand h1{
+      margin:0;
+      font-size: 14px;
+      line-height: 1.1;
+    }
+    .brand .sub{
+      margin:0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .controls{
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .pill{
+      display:flex;
+      align-items:center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.9);
+      box-shadow: 0 10px 18px rgba(10, 50, 90, .04);
+    }
+
+    .pill label{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    input[type="number"], input[type="text"], input[type="date"], input[type="url"], select{
+      font: inherit;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: #fff;
+      outline: none;
+      min-height: 40px;
+    }
+    input[type="number"]{ width: 110px; }
+    select{ min-width: 160px; }
+
+    .btn{
+      border: 0;
+      cursor: pointer;
+      border-radius: 14px;
+      padding: 10px 12px;
+      font-weight: 700;
+      letter-spacing: .1px;
+      transition: transform .05s ease, filter .15s ease;
+      min-height: 40px;
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      user-select:none;
+    }
+    .btn:active{ transform: translateY(1px); }
+
+    .btn-primary{
+      background: linear-gradient(135deg, var(--sky-600), var(--sky-400));
+      color: white;
+      box-shadow: 0 18px 30px rgba(8,159,230,.20);
+    }
+    .btn-ghost{
+      background: rgba(255,255,255,.9);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .btn-danger{
+      background: linear-gradient(135deg, #ff6d6d, #e43c3c);
+      color:#fff;
+      box-shadow: 0 18px 30px rgba(228,60,60,.18);
+    }
+    .btn-small{
+      padding: 8px 10px;
+      border-radius: 12px;
+      min-height: 34px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .months{
+      display:flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+    }
+    .chip{
+      padding: 8px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.85);
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      user-select:none;
+      transition: filter .15s ease, transform .05s ease;
+    }
+    .chip:active{ transform: translateY(1px); }
+    .chip.active{
+      background: linear-gradient(135deg, var(--sky-100), #fff);
+      color: var(--sky-700);
+      border-color: rgba(8,159,230,.22);
+      box-shadow: 0 12px 22px rgba(8,159,230,.12);
+    }
+
+    /* ===========================
+       GRID PRINCIPAL
+    ============================ */
+    .grid{
+      margin-top: 16px;
+      display:grid;
+      grid-template-columns: 1.2fr .9fr;
+      gap: 14px;
+    }
+
+    .card{
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card .hd{
+      padding: 16px 18px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      border-bottom: 1px solid var(--line);
+      background:
+        radial-gradient(900px 300px at 10% 0%, rgba(84,199,255,.12), transparent 60%),
+        rgba(255,255,255,.9);
+    }
+    .card .hd h2{
+      margin:0;
+      font-size: 14px;
+      letter-spacing: .2px;
+    }
+    .card .hd .hint{
+      margin:0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .card .bd{
+      padding: 16px 18px;
+    }
+
+    .summary{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .kpi{
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(239,249,255,.85));
+      padding: 12px 12px;
+      box-shadow: 0 10px 18px rgba(10, 50, 90, .05);
+    }
+    .kpi .label{
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 8px;
+    }
+    .kpi .value{
+      font-size: 18px;
+      font-weight: 900;
+      letter-spacing: .2px;
+    }
+    .tag{
+      font-size: 11px;
+      font-weight: 800;
+      border-radius: 999px;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.9);
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    /* ===========================
+       CALENDARIO
+    ============================ */
+    .cal{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .cal-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    .cal-title{
+      display:flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .cal-title .m{
+      font-weight: 900;
+      font-size: 16px;
+      letter-spacing: .2px;
+    }
+    .cal-title .s{
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .cal-grid{
+      display:grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+    .dow{
+      font-size: 11px;
+      font-weight: 900;
+      color: var(--muted);
+      padding: 4px 6px;
+      text-align: center;
+      letter-spacing: .2px;
+    }
+
+    .day{
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.92);
+      min-height: 86px;
+      padding: 10px 10px;
+      cursor:pointer;
+      user-select:none;
+      display:flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 10px 16px rgba(10, 50, 90, .04);
+      transition: filter .15s ease, transform .05s ease, border-color .15s ease;
+    }
+    .day:hover{ filter: brightness(1.01); }
+    .day:active{ transform: translateY(1px); }
+    .day.muted{
+      opacity: .55;
+      background: rgba(255,255,255,.75);
+    }
+    .day.active{
+      border-color: rgba(8,159,230,.28);
+      box-shadow: 0 16px 24px rgba(8,159,230,.12);
+    }
+    .day .n{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 8px;
+      font-weight: 900;
+      font-size: 13px;
+    }
+    .day .mini{
+      display:flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .mini .row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap: 8px;
+    }
+    .mini .row b{
+      color: var(--text);
+      font-weight: 800;
+      font-size: 11px;
+    }
+
+    /* ===========================
+       LISTAS + FORMS
+    ============================ */
+    .form{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .form .full{ grid-column: 1 / -1; }
+    .help{
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .list{
+      display:flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .item{
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,.94);
+      padding: 12px 12px;
+      box-shadow: 0 10px 18px rgba(10, 50, 90, .04);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap: 10px;
+    }
+    .item .left{
+      display:flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+    .item .title{
+      font-weight: 900;
+      font-size: 13px;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 520px;
+    }
+    .item .meta{
+      display:flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items:center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .pillmeta{
+      border: 1px solid var(--line);
+      background: rgba(239,249,255,.8);
+      color: var(--muted);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .row-actions{
+      display:flex;
+      gap: 8px;
+      align-items:center;
+      flex-wrap: wrap;
+      justify-content:flex-end;
+      min-width: 140px;
+    }
+
+    /* ===========================
+       SECCIONES INFERIORES
+    ============================ */
+    .stack{
+      margin-top: 14px;
+      display:grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .two{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .chartbox{
+      padding: 16px 18px;
+    }
+    canvas{
+      width: 100% !important;
+      height: 320px !important;
+      display:block;
+    }
+
+    .divider{
+      height:1px;
+      background: var(--line);
+      margin: 12px 0;
+    }
+
+    .note{
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    /* ===========================
+       RESPONSIVE
+    ============================ */
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      .brand{ min-width: unset; }
+      .months{ justify-content:flex-start; }
+      .summary{ grid-template-columns: 1fr; }
+      .two{ grid-template-columns: 1fr; }
+      canvas{ height: 300px !important; }
+    }
+
+    @media (max-width: 520px){
+      .topbar{ padding: 12px 12px; }
+      .form{ grid-template-columns: 1fr; }
+      input[type="number"]{ width: 100%; }
+      select{ width: 100%; min-width: unset; }
+      .item .title{ max-width: 260px; }
+      .day{ min-height: 80px; padding: 10px 8px; }
+      .cal-grid{ gap: 7px; }
+      canvas{ height: 280px !important; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <!-- ===========================
+         TOPBAR
+    ============================ -->
+    <div class="topbar">
+      <div class="brand">
+        <div class="logo">€</div>
+        <div>
+          <h1>Control de Gastos (EUR)</h1>
+          <p class="sub">Ingresos/Egresos · Fijos/Variables · Calendario · Backup JSON</p>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="pill">
+          <label for="yearInput">Año</label>
+          <input id="yearInput" type="number" min="2000" max="2100" />
+        </div>
+
+        <div class="months" id="months"></div>
+
+        <button class="btn btn-ghost" id="btnToday" title="Ir al día de hoy">Hoy</button>
+        <button class="btn btn-primary" id="btnQuickAdd" title="Agregar movimiento rápido">+ Movimiento</button>
+      </div>
+    </div>
+
+    <!-- ===========================
+         GRID PRINCIPAL
+    ============================ -->
+    <div class="grid">
+
+      <!-- --------- CALENDARIO --------- -->
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Calendario mensual</h2>
+            <p class="hint">Click en un día para ver/crear movimientos. Inicio de semana: lunes.</p>
+          </div>
+          <div class="pill">
+            <label for="filterType">Filtro</label>
+            <select id="filterType">
+              <option value="all">Todo</option>
+              <option value="income">Solo ingresos</option>
+              <option value="expense">Solo egresos</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="bd">
+          <div class="cal">
+            <div class="cal-head">
+              <div class="cal-title">
+                <div class="m" id="calTitle">Mes</div>
+                <div class="s" id="calSub">—</div>
+              </div>
+              <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                <button class="btn btn-ghost btn-small" id="btnPrevMonth">←</button>
+                <button class="btn btn-ghost btn-small" id="btnNextMonth">→</button>
+              </div>
+            </div>
+
+            <div class="cal-grid" id="dowRow"></div>
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- --------- PANEL DERECHO: RESUMEN + DÍA + ALTA --------- -->
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Resumen y movimientos</h2>
+            <p class="hint">Totales del mes + detalle del día seleccionado.</p>
+          </div>
+          <span class="tag" id="activeDateTag">—</span>
+        </div>
+
+        <div class="bd">
+          <div class="summary">
+            <div class="kpi">
+              <div class="label">
+                <span>Ingresos</span>
+                <span class="tag">Mes</span>
+              </div>
+              <div class="value" id="kpiIncome">€0</div>
+              <div class="help" id="kpiIncomeBreak">Fijos: €0 · Variables: €0</div>
+            </div>
+
+            <div class="kpi">
+              <div class="label">
+                <span>Gastos</span>
+                <span class="tag">Mes</span>
+              </div>
+              <div class="value" id="kpiExpense">€0</div>
+              <div class="help" id="kpiExpenseBreak">Fijos: €0 · Variables: €0</div>
+            </div>
+
+            <div class="kpi">
+              <div class="label">
+                <span>Balance</span>
+                <span class="tag" id="kpiSavingsPct">0%</span>
+              </div>
+              <div class="value" id="kpiBalance">€0</div>
+              <div class="help">Balance = ingresos − gastos</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div>
+            <h3 style="margin:0; font-size:13px; letter-spacing:.2px;">Movimientos del día</h3>
+            <p class="help" style="margin-top:6px;">Editá o eliminá. Los fijos generados desde plantillas figuran como “auto”.</p>
+
+            <div class="list" id="dayList"></div>
+
+            <div class="divider"></div>
+
+            <h3 style="margin:0; font-size:13px; letter-spacing:.2px;">Agregar / editar movimiento</h3>
+            <form id="txForm" class="form" autocomplete="off">
+              <input type="hidden" id="txId" />
+
+              <div>
+                <label class="help" for="txType">Tipo</label>
+                <select id="txType">
+                  <option value="expense">Egreso</option>
+                  <option value="income">Ingreso</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="help" for="txKind">Clase</label>
+                <select id="txKind">
+                  <option value="variable">Variable</option>
+                  <option value="fixed">Fijo</option>
+                </select>
+              </div>
+
+              <div class="full">
+                <label class="help" for="txCategory">Categoría</label>
+                <input id="txCategory" type="text" placeholder="Ej: Alquiler, Comida, Transporte, Gym..." />
+              </div>
+
+              <div>
+                <label class="help" for="txAmount">Monto (€)</label>
+                <input id="txAmount" type="number" step="0.01" min="0" placeholder="0.00" required />
+              </div>
+
+              <div>
+                <label class="help" for="txDate">Fecha</label>
+                <input id="txDate" type="date" required />
+              </div>
+
+              <div class="full">
+                <label class="help" for="txNote">Nota (opcional)</label>
+                <input id="txNote" type="text" placeholder="Ej: compra semanal, ajuste, etc." />
+              </div>
+
+              <div class="full" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+                <button type="button" class="btn btn-ghost" id="btnTxClear">Limpiar</button>
+                <button type="submit" class="btn btn-primary" id="btnTxSave">Guardar</button>
+              </div>
+            </form>
+
+            <p class="note" style="margin-top:12px;">
+              Sugerencia: para gastos fijos (alquiler, suscripciones), usá “Plantillas de fijos” más abajo.
+              El sistema generará automáticamente el movimiento mensual si no existe.
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ===========================
+         SECCIÓN: GRÁFICOS
+    ============================ -->
+    <div class="stack">
+
+      <div class="two">
+        <div class="card">
+          <div class="hd">
+            <div>
+              <h2>Comparación del mes</h2>
+              <p class="hint">Ingresos vs gastos (fijos/variables) del mes seleccionado.</p>
+            </div>
+            <span class="tag" id="chartMonthTag">—</span>
+          </div>
+          <div class="chartbox">
+            <canvas id="chartMonth"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="hd">
+            <div>
+              <h2>Evolución anual</h2>
+              <p class="hint">Gastos (mes a mes). Incluye ingresos y balance para contexto.</p>
+            </div>
+            <span class="tag" id="chartYearTag">—</span>
+          </div>
+          <div class="chartbox">
+            <canvas id="chartYear"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===========================
+           SECCIÓN: PLANTILLAS DE FIJOS
+      ============================ -->
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Plantillas de fijos</h2>
+            <p class="hint">Definí fijos (ingresos o egresos) por día del mes. Se generan automáticamente.</p>
+          </div>
+          <button class="btn btn-ghost" id="btnRunTemplates" title="Reaplicar plantillas al mes actual">Aplicar al mes</button>
+        </div>
+        <div class="bd">
+          <form id="tplForm" class="form" autocomplete="off">
+            <input type="hidden" id="tplId" />
+
+            <div>
+              <label class="help" for="tplType">Tipo</label>
+              <select id="tplType">
+                <option value="expense">Egreso fijo</option>
+                <option value="income">Ingreso fijo</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="help" for="tplAmount">Monto (€)</label>
+              <input id="tplAmount" type="number" step="0.01" min="0" placeholder="0.00" required />
+            </div>
+
+            <div>
+              <label class="help" for="tplDay">Día del mes</label>
+              <input id="tplDay" type="number" min="1" max="31" placeholder="1..31" required />
+            </div>
+
+            <div class="full">
+              <label class="help" for="tplCategory">Categoría</label>
+              <input id="tplCategory" type="text" placeholder="Ej: Alquiler, Internet, Sueldo, etc." required />
+            </div>
+
+            <div class="full">
+              <label class="help" for="tplNote">Nota (opcional)</label>
+              <input id="tplNote" type="text" placeholder="Ej: suscripción anual prorrateada..." />
+            </div>
+
+            <div class="full" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost" id="btnTplClear">Limpiar</button>
+              <button type="submit" class="btn btn-primary" id="btnTplSave">Guardar plantilla</button>
+            </div>
+          </form>
+
+          <div class="divider"></div>
+          <div class="list" id="tplList"></div>
+
+          <p class="note" style="margin-top:12px;">
+            Nota: si un mes tiene menos días (ej: febrero) y una plantilla está configurada para día 31,
+            se coloca en el último día del mes automáticamente.
+          </p>
+        </div>
+      </div>
+
+      <!-- ===========================
+           SECCIÓN: WISHLIST
+      ============================ -->
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Lista de deseos</h2>
+            <p class="hint">Registra la fecha al crear. Podés marcar como comprado y convertir a gasto.</p>
+          </div>
+          <span class="tag">Wishlist</span>
+        </div>
+        <div class="bd">
+          <form id="wishForm" class="form" autocomplete="off">
+            <input type="hidden" id="wishId" />
+
+            <div class="full">
+              <label class="help" for="wishItem">Producto / deseo</label>
+              <input id="wishItem" type="text" placeholder="Ej: Zapatillas, Cámara, Mochila..." required />
+            </div>
+
+            <div>
+              <label class="help" for="wishPrice">Precio estimado (€)</label>
+              <input id="wishPrice" type="number" step="0.01" min="0" placeholder="0.00" />
+            </div>
+
+            <div>
+              <label class="help" for="wishPriority">Prioridad</label>
+              <select id="wishPriority">
+                <option value="1">1 (alta)</option>
+                <option value="2" selected>2 (media)</option>
+                <option value="3">3 (baja)</option>
+              </select>
+            </div>
+
+            <div class="full">
+              <label class="help" for="wishLink">Link (opcional)</label>
+              <input id="wishLink" type="url" placeholder="https://..." />
+            </div>
+
+            <div class="full">
+              <label class="help" for="wishNote">Nota (opcional)</label>
+              <input id="wishNote" type="text" placeholder="Ej: esperar descuento, comparar modelos..." />
+            </div>
+
+            <div class="full" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost" id="btnWishClear">Limpiar</button>
+              <button type="submit" class="btn btn-primary">Guardar deseo</button>
+            </div>
+          </form>
+
+          <div class="divider"></div>
+          <div class="list" id="wishList"></div>
+        </div>
+      </div>
+
+      <!-- ===========================
+           SECCIÓN: INTERÉS COMPUESTO
+      ============================ -->
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Calculadora de interés compuesto</h2>
+            <p class="hint">Capital inicial + aporte mensual. Incluye gráfico de crecimiento.</p>
+          </div>
+          <span class="tag">Simulación</span>
+        </div>
+        <div class="bd">
+          <form id="icForm" class="form" autocomplete="off">
+            <div>
+              <label class="help" for="icPrincipal">Capital inicial (€)</label>
+              <input id="icPrincipal" type="number" step="0.01" min="0" value="0" />
+            </div>
+
+            <div>
+              <label class="help" for="icMonthly">Aporte mensual (€)</label>
+              <input id="icMonthly" type="number" step="0.01" min="0" value="0" />
+            </div>
+
+            <div>
+              <label class="help" for="icRate">Tasa anual (%)</label>
+              <input id="icRate" type="number" step="0.01" min="0" value="0" />
+            </div>
+
+            <div>
+              <label class="help" for="icYears">Años</label>
+              <input id="icYears" type="number" step="1" min="1" value="5" />
+            </div>
+
+            <div class="full">
+              <label class="help" for="icFreq">Capitalización</label>
+              <select id="icFreq">
+                <option value="12" selected>Mensual</option>
+                <option value="4">Trimestral</option>
+                <option value="1">Anual</option>
+              </select>
+            </div>
+
+            <div class="full" style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+              <button type="button" class="btn btn-ghost" id="btnIcRun">Calcular</button>
+            </div>
+          </form>
+
+          <div class="divider"></div>
+
+          <div class="summary" style="margin:0;">
+            <div class="kpi">
+              <div class="label"><span>Monto final</span><span class="tag">Estimado</span></div>
+              <div class="value" id="icFinal">€0</div>
+              <div class="help" id="icFinalHint">—</div>
+            </div>
+            <div class="kpi">
+              <div class="label"><span>Total aportado</span><span class="tag">Aportes</span></div>
+              <div class="value" id="icContrib">€0</div>
+              <div class="help">Capital + aportes mensuales</div>
+            </div>
+            <div class="kpi">
+              <div class="label"><span>Intereses</span><span class="tag">Ganancia</span></div>
+              <div class="value" id="icInterest">€0</div>
+              <div class="help">Monto final − total aportado</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <canvas id="chartIC"></canvas>
+        </div>
+      </div>
+
+      <!-- ===========================
+           SECCIÓN: BACKUP JSON
+      ============================ -->
+      <div class="card">
+        <div class="hd">
+          <div>
+            <h2>Backup · Exportar / Importar</h2>
+            <p class="hint">Exporta un .json para usar en otra PC. Importar reemplaza los datos (con snapshot automático).</p>
+          </div>
+          <span class="tag" id="dataStatus">—</span>
+        </div>
+        <div class="bd" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btnExport">Exportar JSON</button>
+
+            <label class="btn btn-ghost" for="importFile" style="cursor:pointer;">
+              Importar JSON
+            </label>
+            <input id="importFile" type="file" accept="application/json" style="display:none;" />
+
+            <button class="btn btn-danger" id="btnReset" title="Borra todos los datos locales">Reset</button>
+          </div>
+
+          <div class="note" style="max-width:560px;">
+            Importante: al importar se crea una copia “snapshot” automática en LocalStorage por seguridad.
+            Si algo sale mal, podés recuperar ese snapshot desde la consola o volviendo a importar un export previo.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // CONTROL DE GASTOS — LOGICA (LocalStorage)
+    // =========================================================
+
+    // =========================
+    // 1) UTILIDADES
+    // =========================
+    const LS_KEY = "budget_control_eur_v1";
+    const SNAP_KEY = "budget_control_eur_snapshot";
+    const SCHEMA_VERSION = 1;
+
+    const MONTHS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    const MONTHS_LONG = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+    const DOW = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+    function nowISO(){ return new Date().toISOString(); }
+    function pad2(n){ return String(n).padStart(2,"0"); }
+
+    function uid(prefix="id"){
+      return `${prefix}_${Math.random().toString(16).slice(2)}_${Date.now().toString(16)}`;
+    }
+
+    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+    function toYMD(date){
+      const y = date.getFullYear();
+      const m = pad2(date.getMonth()+1);
+      const d = pad2(date.getDate());
+      return `${y}-${m}-${d}`;
+    }
+
+    function parseYMD(ymd){
+      const [y,m,d] = ymd.split("-").map(Number);
+      return new Date(y, (m-1), d);
+    }
+
+    function fmtEUR(amount){
+      // Formato es-ES con EUR
+      return new Intl.NumberFormat("es-ES", { style:"currency", currency:"EUR", maximumFractionDigits: 2 }).format(amount || 0);
+    }
+
+    function monthKey(year, monthIndex){
+      return `${year}-${pad2(monthIndex+1)}`;
+    }
+
+    function sameMonth(ymd, year, monthIndex){
+      const [y,m] = ymd.split("-").map(Number);
+      return (y === year) && (m === (monthIndex+1));
+    }
+
+    function daysInMonth(year, monthIndex){
+      return new Date(year, monthIndex+1, 0).getDate();
+    }
+
+    function lastDayForTemplate(year, monthIndex, day){
+      const dim = daysInMonth(year, monthIndex);
+      return clamp(day, 1, dim);
+    }
+
+    function safeNumber(v){
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    // =========================
+    // 2) MODELO DE DATOS
+    // =========================
+    function defaultData(){
+      const today = new Date();
+      return {
+        meta: {
+          schemaVersion: SCHEMA_VERSION,
+          createdAt: nowISO(),
+          updatedAt: nowISO()
+        },
+        settings: {
+          year: today.getFullYear(),
+          monthIndex: today.getMonth(),
+          filterType: "all",
+          activeDate: toYMD(today)
+        },
+        templates: [
+          // ejemplo:
+          // { id, type:"expense|income", amount, dayOfMonth, category, note, createdAt }
+        ],
+        transactions: [
+          // { id, date:"YYYY-MM-DD", type:"income|expense", kind:"fixed|variable", category, amount, note, createdAt, autoFromTemplateId?:string }
+        ],
+        wishlist: [
+          // { id, item, price, priority:1..3, link, note, status:"pending|bought|discarded", createdAt, purchasedAt? }
+        ]
+      };
+    }
+
+    function load(){
+      const raw = localStorage.getItem(LS_KEY);
+      if(!raw) return defaultData();
+      try{
+        const data = JSON.parse(raw);
+        // validación mínima
+        if(!data || typeof data !== "object") return defaultData();
+        if(!data.meta || data.meta.schemaVersion !== SCHEMA_VERSION){
+          // si cambia schema, acá podrías migrar; por ahora: fallback seguro
+          return { ...defaultData(), ...data };
+        }
+        // normalizar
+        data.settings ||= defaultData().settings;
+        data.templates = Array.isArray(data.templates) ? data.templates : [];
+        data.transactions = Array.isArray(data.transactions) ? data.transactions : [];
+        data.wishlist = Array.isArray(data.wishlist) ? data.wishlist : [];
+        return data;
+      }catch(e){
+        console.warn("LocalStorage corrupto, restaurando defaults:", e);
+        return defaultData();
+      }
+    }
+
+    function save(){
+      state.meta.updatedAt = nowISO();
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      updateDataStatus();
+    }
+
+    function snapshot(){
+      localStorage.setItem(SNAP_KEY, JSON.stringify({
+        at: nowISO(),
+        data: state
+      }));
+    }
+
+    let state = load();
+
+    // =========================
+    // 3) ELEMENTOS UI
+    // =========================
+    const el = (id) => document.getElementById(id);
+
+    const monthsWrap = el("months");
+    const yearInput = el("yearInput");
+    const filterType = el("filterType");
+
+    const calTitle = el("calTitle");
+    const calSub = el("calSub");
+    const dowRow = el("dowRow");
+    const calGrid = el("calGrid");
+
+    const activeDateTag = el("activeDateTag");
+    const dayList = el("dayList");
+
+    const kpiIncome = el("kpiIncome");
+    const kpiExpense = el("kpiExpense");
+    const kpiBalance = el("kpiBalance");
+    const kpiSavingsPct = el("kpiSavingsPct");
+    const kpiIncomeBreak = el("kpiIncomeBreak");
+    const kpiExpenseBreak = el("kpiExpenseBreak");
+
+    const chartMonthTag = el("chartMonthTag");
+    const chartYearTag = el("chartYearTag");
+
+    const txForm = el("txForm");
+    const txId = el("txId");
+    const txType = el("txType");
+    const txKind = el("txKind");
+    const txCategory = el("txCategory");
+    const txAmount = el("txAmount");
+    const txDate = el("txDate");
+    const txNote = el("txNote");
+    const btnTxClear = el("btnTxClear");
+
+    const tplForm = el("tplForm");
+    const tplId = el("tplId");
+    const tplType = el("tplType");
+    const tplAmount = el("tplAmount");
+    const tplDay = el("tplDay");
+    const tplCategory = el("tplCategory");
+    const tplNote = el("tplNote");
+    const btnTplClear = el("btnTplClear");
+    const tplList = el("tplList");
+
+    const wishForm = el("wishForm");
+    const wishId = el("wishId");
+    const wishItem = el("wishItem");
+    const wishPrice = el("wishPrice");
+    const wishPriority = el("wishPriority");
+    const wishLink = el("wishLink");
+    const wishNote = el("wishNote");
+    const btnWishClear = el("btnWishClear");
+    const wishList = el("wishList");
+
+    const btnPrevMonth = el("btnPrevMonth");
+    const btnNextMonth = el("btnNextMonth");
+    const btnToday = el("btnToday");
+    const btnQuickAdd = el("btnQuickAdd");
+    const btnRunTemplates = el("btnRunTemplates");
+
+    const btnExport = el("btnExport");
+    const importFile = el("importFile");
+    const btnReset = el("btnReset");
+    const dataStatus = el("dataStatus");
+
+    // Interés compuesto
+    const icPrincipal = el("icPrincipal");
+    const icMonthly = el("icMonthly");
+    const icRate = el("icRate");
+    const icYears = el("icYears");
+    const icFreq = el("icFreq");
+    const btnIcRun = el("btnIcRun");
+    const icFinal = el("icFinal");
+    const icContrib = el("icContrib");
+    const icInterest = el("icInterest");
+    const icFinalHint = el("icFinalHint");
+
+    // =========================
+    // 4) INICIALIZACIÓN UI BÁSICA
+    // =========================
+    function initMonths(){
+      monthsWrap.innerHTML = "";
+      MONTHS.forEach((m, idx) => {
+        const b = document.createElement("button");
+        b.className = "chip";
+        b.type = "button";
+        b.textContent = m;
+        b.addEventListener("click", () => {
+          state.settings.monthIndex = idx;
+          state.settings.activeDate = `${state.settings.year}-${pad2(idx+1)}-01`;
+          applyTemplatesForCurrentMonth(); // auto fijos
+          save();
+          renderAll();
+        });
+        monthsWrap.appendChild(b);
+      });
+    }
+
+    function initDOW(){
+      dowRow.innerHTML = "";
+      DOW.forEach(d => {
+        const div = document.createElement("div");
+        div.className = "dow";
+        div.textContent = d;
+        dowRow.appendChild(div);
+      });
+    }
+
+    // =========================
+    // 5) PLANTILLAS DE FIJOS
+    // =========================
+    function applyTemplatesForMonth(year, monthIndex){
+      const dim = daysInMonth(year, monthIndex);
+
+      state.templates.forEach(tpl => {
+        const day = lastDayForTemplate(year, monthIndex, safeNumber(tpl.dayOfMonth));
+        const date = `${year}-${pad2(monthIndex+1)}-${pad2(day)}`;
+
+        // evitar duplicados: ya existe tx auto con ese templateId y esa fecha
+        const exists = state.transactions.some(tx =>
+          tx.autoFromTemplateId === tpl.id && tx.date === date
+        );
+        if(exists) return;
+
+        // crear transacción auto
+        const tx = {
+          id: uid("tx"),
+          date,
+          type: tpl.type,               // income/expense
+          kind: "fixed",                // fijo
+          category: tpl.category || "",
+          amount: safeNumber(tpl.amount),
+          note: tpl.note ? `${tpl.note} (auto)` : "(auto)",
+          createdAt: nowISO(),
+          autoFromTemplateId: tpl.id
+        };
+        state.transactions.push(tx);
+      });
+    }
+
+    function applyTemplatesForCurrentMonth(){
+      applyTemplatesForMonth(state.settings.year, state.settings.monthIndex);
+    }
+
+    // =========================
+    // 6) CÁLCULOS
+    // =========================
+    function monthTransactions(year, monthIndex){
+      const typeFilter = state.settings.filterType || "all";
+      return state.transactions
+        .filter(tx => sameMonth(tx.date, year, monthIndex))
+        .filter(tx => typeFilter === "all" ? true : tx.type === typeFilter);
+    }
+
+    function sumBy(list, fn){
+      return list.reduce((acc, x) => acc + safeNumber(fn(x)), 0);
+    }
+
+    function totalsForMonth(year, monthIndex){
+      const txs = state.transactions.filter(tx => sameMonth(tx.date, year, monthIndex));
+
+      const incomeFixed = sumBy(txs.filter(t => t.type==="income" && t.kind==="fixed"), t=>t.amount);
+      const incomeVar   = sumBy(txs.filter(t => t.type==="income" && t.kind==="variable"), t=>t.amount);
+      const expFixed    = sumBy(txs.filter(t => t.type==="expense" && t.kind==="fixed"), t=>t.amount);
+      const expVar      = sumBy(txs.filter(t => t.type==="expense" && t.kind==="variable"), t=>t.amount);
+
+      const income = incomeFixed + incomeVar;
+      const expense = expFixed + expVar;
+      const balance = income - expense;
+      const savingsPct = income > 0 ? (balance / income) * 100 : 0;
+
+      return {
+        incomeFixed, incomeVar, expFixed, expVar,
+        income, expense, balance, savingsPct
+      };
+    }
+
+    function totalsForDay(ymd){
+      const txs = state.transactions.filter(tx => tx.date === ymd);
+      const income = sumBy(txs.filter(t=>t.type==="income"), t=>t.amount);
+      const expense = sumBy(txs.filter(t=>t.type==="expense"), t=>t.amount);
+      return { income, expense };
+    }
+
+    function annualSeries(year){
+      const expenses = [];
+      const incomes = [];
+      const balance = [];
+      for(let m=0; m<12; m++){
+        const t = totalsForMonth(year, m);
+        expenses.push(t.expense);
+        incomes.push(t.income);
+        balance.push(t.balance);
+      }
+      return { expenses, incomes, balance };
+    }
+
+    // =========================
+    // 7) RENDER: TOP + CALENDARIO
+    // =========================
+    function renderTop(){
+      yearInput.value = state.settings.year;
+      filterType.value = state.settings.filterType || "all";
+
+      [...monthsWrap.children].forEach((chip, idx) => {
+        chip.classList.toggle("active", idx === state.settings.monthIndex);
+      });
+
+      const y = state.settings.year;
+      const m = state.settings.monthIndex;
+
+      calTitle.textContent = `${MONTHS_LONG[m]} ${y}`;
+      calSub.textContent = `Mes: ${monthKey(y, m)}`;
+
+      chartMonthTag.textContent = `${MONTHS_LONG[m]} ${y}`;
+      chartYearTag.textContent = `${y}`;
+    }
+
+    function renderCalendar(){
+      const y = state.settings.year;
+      const m = state.settings.monthIndex;
+
+      const first = new Date(y, m, 1);
+      // Convertimos a lunes=0..domingo=6
+      const firstDow = (first.getDay() + 6) % 7;
+      const dim = daysInMonth(y, m);
+
+      // queremos 6 filas x 7 = 42
+      const totalCells = 42;
+      const startDate = new Date(y, m, 1 - firstDow);
+
+      const active = state.settings.activeDate;
+
+      calGrid.innerHTML = "";
+      for(let i=0; i<totalCells; i++){
+        const d = new Date(startDate);
+        d.setDate(startDate.getDate()+i);
+
+        const ymd = toYMD(d);
+        const inThisMonth = (d.getFullYear()===y && d.getMonth()===m);
+
+        const dayTotals = totalsForDay(ymd);
+
+        // filtro calendario: se aplica SOLO a mini valores si el usuario filtra income/expense
+        const filt = state.settings.filterType || "all";
+        const incVal = (filt==="expense") ? 0 : dayTotals.income;
+        const expVal = (filt==="income") ? 0 : dayTotals.expense;
+
+        const cell = document.createElement("div");
+        cell.className = "day";
+        if(!inThisMonth) cell.classList.add("muted");
+        if(ymd === active) cell.classList.add("active");
+
+        cell.innerHTML = `
+          <div class="n">
+            <span>${d.getDate()}</span>
+            <span style="font-size:11px; color: var(--muted); font-weight:800;">${inThisMonth ? "" : MONTHS[d.getMonth()]}</span>
+          </div>
+          <div class="mini">
+            <div class="row"><span>Ing.</span><b>${fmtEUR(incVal)}</b></div>
+            <div class="row"><span>Gas.</span><b>${fmtEUR(expVal)}</b></div>
+          </div>
+        `;
+
+        cell.addEventListener("click", () => {
+          state.settings.year = d.getFullYear();
+          state.settings.monthIndex = d.getMonth();
+          state.settings.activeDate = ymd;
+
+          // al cambiar de mes por click en días afuera del mes, aplicamos plantillas
+          applyTemplatesForCurrentMonth();
+
+          save();
+          renderAll();
+          // precargar form fecha
+          txDate.value = state.settings.activeDate;
+        });
+
+        calGrid.appendChild(cell);
+      }
+    }
+
+    // =========================
+    // 8) RENDER: KPIs + LISTA DÍA
+    // =========================
+    function renderKPIs(){
+      const y = state.settings.year;
+      const m = state.settings.monthIndex;
+      const t = totalsForMonth(y, m);
+
+      kpiIncome.textContent = fmtEUR(t.income);
+      kpiExpense.textContent = fmtEUR(t.expense);
+      kpiBalance.textContent = fmtEUR(t.balance);
+
+      kpiIncomeBreak.textContent = `Fijos: ${fmtEUR(t.incomeFixed)} · Variables: ${fmtEUR(t.incomeVar)}`;
+      kpiExpenseBreak.textContent = `Fijos: ${fmtEUR(t.expFixed)} · Variables: ${fmtEUR(t.expVar)}`;
+
+      const pct = Math.round(t.savingsPct * 10) / 10;
+      kpiSavingsPct.textContent = `${pct}%`;
+
+      // color del balance (simple)
+      kpiBalance.style.color = t.balance >= 0 ? "var(--good)" : "var(--bad)";
+    }
+
+    function txBadge(tx){
+      const parts = [];
+      parts.push(tx.type === "income" ? "Ingreso" : "Egreso");
+      parts.push(tx.kind === "fixed" ? "Fijo" : "Variable");
+      if(tx.autoFromTemplateId) parts.push("auto");
+      return parts.join(" · ");
+    }
+
+    function renderDayList(){
+      const ymd = state.settings.activeDate;
+      activeDateTag.textContent = new Intl.DateTimeFormat("es-ES", { dateStyle:"medium" }).format(parseYMD(ymd));
+
+      const list = state.transactions
+        .filter(tx => tx.date === ymd)
+        .sort((a,b) => (a.createdAt||"").localeCompare(b.createdAt||""));
+
+      if(list.length === 0){
+        dayList.innerHTML = `<div class="note">No hay movimientos en este día.</div>`;
+        return;
+      }
+
+      dayList.innerHTML = "";
+      list.forEach(tx => {
+        const amount = safeNumber(tx.amount);
+        const sign = tx.type === "income" ? "+" : "−";
+        const color = tx.type === "income" ? "var(--good)" : "var(--bad)";
+        const cat = (tx.category || "(Sin categoría)");
+
+        const div = document.createElement("div");
+        div.className = "item";
+
+        div.innerHTML = `
+          <div class="left">
+            <div class="title">${cat}</div>
+            <div class="meta">
+              <span class="pillmeta">${txBadge(tx)}</span>
+              <span class="pillmeta">${new Intl.DateTimeFormat("es-ES", { dateStyle:"short" }).format(parseYMD(tx.date))}</span>
+              ${tx.note ? `<span class="pillmeta">${escapeHTML(tx.note)}</span>` : ``}
+            </div>
+          </div>
+          <div class="row-actions">
+            <div style="font-weight:900; color:${color}; min-width:110px; text-align:right;">${sign} ${fmtEUR(amount)}</div>
+            <button class="btn btn-ghost btn-small" data-act="edit">Editar</button>
+            <button class="btn btn-danger btn-small" data-act="del">Borrar</button>
+          </div>
+        `;
+
+        div.querySelector('[data-act="edit"]').addEventListener("click", () => {
+          fillTxForm(tx);
+          // acercar a form
+          txCategory.scrollIntoView({ behavior:"smooth", block:"center" });
+        });
+
+        div.querySelector('[data-act="del"]').addEventListener("click", () => {
+          if(!confirm("¿Borrar este movimiento?")) return;
+          state.transactions = state.transactions.filter(t => t.id !== tx.id);
+          save();
+          renderAll();
+        });
+
+        dayList.appendChild(div);
+      });
+    }
+
+    function escapeHTML(str){
+      return String(str).replace(/[&<>"']/g, s => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[s]));
+    }
+
+    // =========================
+    // 9) FORM TX (ALTA/EDICIÓN)
+    // =========================
+    function clearTxForm(){
+      txId.value = "";
+      txType.value = "expense";
+      txKind.value = "variable";
+      txCategory.value = "";
+      txAmount.value = "";
+      txDate.value = state.settings.activeDate || toYMD(new Date());
+      txNote.value = "";
+      el("btnTxSave").textContent = "Guardar";
+    }
+
+    function fillTxForm(tx){
+      txId.value = tx.id;
+      txType.value = tx.type;
+      txKind.value = tx.kind;
+      txCategory.value = tx.category || "";
+      txAmount.value = safeNumber(tx.amount);
+      txDate.value = tx.date;
+      txNote.value = tx.note || "";
+      el("btnTxSave").textContent = "Actualizar";
+    }
+
+    txForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = txId.value.trim();
+      const tx = {
+        id: id || uid("tx"),
+        date: txDate.value,
+        type: txType.value,
+        kind: txKind.value,
+        category: (txCategory.value || "").trim(),
+        amount: safeNumber(txAmount.value),
+        note: (txNote.value || "").trim(),
+        createdAt: nowISO()
+      };
+
+      if(!tx.date || !tx.type || !tx.kind) return;
+
+      // si está editando un auto (de plantilla), mantenemos la marca autoFromTemplateId
+      if(id){
+        const prev = state.transactions.find(t => t.id === id);
+        if(prev && prev.autoFromTemplateId){
+          tx.autoFromTemplateId = prev.autoFromTemplateId;
+        }
+        state.transactions = state.transactions.map(t => t.id === id ? { ...t, ...tx } : t);
+      }else{
+        state.transactions.push(tx);
+      }
+
+      // si el movimiento cae en otro mes, nos movemos al mes de ese movimiento (coherencia)
+      const d = parseYMD(tx.date);
+      state.settings.year = d.getFullYear();
+      state.settings.monthIndex = d.getMonth();
+      state.settings.activeDate = tx.date;
+
+      save();
+      renderAll();
+      clearTxForm();
+    });
+
+    btnTxClear.addEventListener("click", () => clearTxForm());
+
+    // =========================
+    // 10) PLANTILLAS: CRUD
+    // =========================
+    function clearTplForm(){
+      tplId.value = "";
+      tplType.value = "expense";
+      tplAmount.value = "";
+      tplDay.value = "";
+      tplCategory.value = "";
+      tplNote.value = "";
+      el("btnTplSave").textContent = "Guardar plantilla";
+    }
+
+    function fillTplForm(tpl){
+      tplId.value = tpl.id;
+      tplType.value = tpl.type;
+      tplAmount.value = safeNumber(tpl.amount);
+      tplDay.value = safeNumber(tpl.dayOfMonth);
+      tplCategory.value = tpl.category || "";
+      tplNote.value = tpl.note || "";
+      el("btnTplSave").textContent = "Actualizar plantilla";
+    }
+
+    tplForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = tplId.value.trim();
+      const tpl = {
+        id: id || uid("tpl"),
+        type: tplType.value,
+        amount: safeNumber(tplAmount.value),
+        dayOfMonth: clamp(safeNumber(tplDay.value), 1, 31),
+        category: (tplCategory.value || "").trim(),
+        note: (tplNote.value || "").trim(),
+        createdAt: nowISO()
+      };
+
+      if(!tpl.category || !tpl.amount || !tpl.dayOfMonth) return;
+
+      if(id){
+        state.templates = state.templates.map(t => t.id === id ? { ...t, ...tpl } : t);
+      }else{
+        state.templates.push(tpl);
+      }
+
+      // aplicar al mes actual
+      applyTemplatesForCurrentMonth();
+
+      save();
+      renderAll();
+      clearTplForm();
+    });
+
+    btnTplClear.addEventListener("click", () => clearTplForm());
+
+    function renderTemplates(){
+      if(state.templates.length === 0){
+        tplList.innerHTML = `<div class="note">No hay plantillas aún. Creá tus fijos (alquiler, sueldo, suscripciones...).</div>`;
+        return;
+      }
+
+      const sorted = [...state.templates].sort((a,b) => (a.dayOfMonth - b.dayOfMonth) || (a.type.localeCompare(b.type)));
+      tplList.innerHTML = "";
+
+      sorted.forEach(tpl => {
+        const div = document.createElement("div");
+        div.className = "item";
+
+        const sign = tpl.type === "income" ? "+" : "−";
+        const color = tpl.type === "income" ? "var(--good)" : "var(--bad)";
+        const label = tpl.type === "income" ? "Ingreso fijo" : "Egreso fijo";
+
+        div.innerHTML = `
+          <div class="left">
+            <div class="title">${escapeHTML(tpl.category || "(Sin categoría)")}</div>
+            <div class="meta">
+              <span class="pillmeta">${label}</span>
+              <span class="pillmeta">Día ${tpl.dayOfMonth}</span>
+              ${tpl.note ? `<span class="pillmeta">${escapeHTML(tpl.note)}</span>` : ``}
+            </div>
+          </div>
+          <div class="row-actions">
+            <div style="font-weight:900; color:${color}; min-width:110px; text-align:right;">${sign} ${fmtEUR(safeNumber(tpl.amount))}</div>
+            <button class="btn btn-ghost btn-small" data-act="edit">Editar</button>
+            <button class="btn btn-danger btn-small" data-act="del">Borrar</button>
+          </div>
+        `;
+
+        div.querySelector('[data-act="edit"]').addEventListener("click", () => {
+          fillTplForm(tpl);
+          tplCategory.scrollIntoView({ behavior:"smooth", block:"center" });
+        });
+
+        div.querySelector('[data-act="del"]').addEventListener("click", () => {
+          if(!confirm("¿Borrar esta plantilla? También quedarán los movimientos auto ya generados (podés borrarlos aparte).")) return;
+          state.templates = state.templates.filter(t => t.id !== tpl.id);
+          save();
+          renderAll();
+        });
+
+        tplList.appendChild(div);
+      });
+    }
+
+    btnRunTemplates.addEventListener("click", () => {
+      applyTemplatesForCurrentMonth();
+      save();
+      renderAll();
+      alert("Plantillas aplicadas al mes actual (sin duplicar).");
+    });
+
+    // =========================
+    // 11) WISHLIST: CRUD + CONVERTIR A GASTO
+    // =========================
+    function clearWishForm(){
+      wishId.value = "";
+      wishItem.value = "";
+      wishPrice.value = "";
+      wishPriority.value = "2";
+      wishLink.value = "";
+      wishNote.value = "";
+    }
+
+    function fillWishForm(w){
+      wishId.value = w.id;
+      wishItem.value = w.item || "";
+      wishPrice.value = safeNumber(w.price);
+      wishPriority.value = String(w.priority || 2);
+      wishLink.value = w.link || "";
+      wishNote.value = w.note || "";
+    }
+
+    wishForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = wishId.value.trim();
+      const w = {
+        id: id || uid("wish"),
+        item: (wishItem.value || "").trim(),
+        price: safeNumber(wishPrice.value),
+        priority: clamp(safeNumber(wishPriority.value), 1, 3),
+        link: (wishLink.value || "").trim(),
+        note: (wishNote.value || "").trim(),
+        status: "pending",
+        createdAt: nowISO()
+      };
+      if(!w.item) return;
+
+      if(id){
+        const prev = state.wishlist.find(x => x.id === id);
+        state.wishlist = state.wishlist.map(x => x.id === id ? { ...prev, ...w, status: prev?.status || "pending", createdAt: prev?.createdAt || w.createdAt } : x);
+      }else{
+        state.wishlist.push(w);
+      }
+      save();
+      renderAll();
+      clearWishForm();
+    });
+
+    btnWishClear.addEventListener("click", () => clearWishForm());
+
+    function renderWishlist(){
+      if(state.wishlist.length === 0){
+        wishList.innerHTML = `<div class="note">No hay deseos aún. Registrá uno para que quede con fecha automática.</div>`;
+        return;
+      }
+
+      const order = { pending: 0, bought: 1, discarded: 2 };
+      const sorted = [...state.wishlist].sort((a,b) =>
+        (order[a.status] - order[b.status]) ||
+        (a.priority - b.priority) ||
+        (b.createdAt||"").localeCompare(a.createdAt||"")
+      );
+
+      wishList.innerHTML = "";
+      sorted.forEach(w => {
+        const div = document.createElement("div");
+        div.className = "item";
+
+        const statusLabel = w.status === "pending" ? "Pendiente" : (w.status === "bought" ? "Comprado" : "Descartado");
+        const created = w.createdAt ? new Intl.DateTimeFormat("es-ES", { dateStyle:"medium" }).format(new Date(w.createdAt)) : "—";
+
+        div.innerHTML = `
+          <div class="left">
+            <div class="title">${escapeHTML(w.item)}</div>
+            <div class="meta">
+              <span class="pillmeta">Estado: ${statusLabel}</span>
+              <span class="pillmeta">Prioridad: ${w.priority}</span>
+              <span class="pillmeta">Creado: ${created}</span>
+              ${w.price ? `<span class="pillmeta">Estimado: ${fmtEUR(w.price)}</span>` : ``}
+              ${w.link ? `<a class="pillmeta" href="${escapeAttr(w.link)}" target="_blank" rel="noopener noreferrer">Link</a>` : ``}
+              ${w.note ? `<span class="pillmeta">${escapeHTML(w.note)}</span>` : ``}
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="btn btn-ghost btn-small" data-act="edit">Editar</button>
+            <button class="btn btn-ghost btn-small" data-act="buy">Marcar comprado</button>
+            <button class="btn btn-ghost btn-small" data-act="toExpense">Convertir a gasto</button>
+            <button class="btn btn-danger btn-small" data-act="del">Borrar</button>
+          </div>
+        `;
+
+        div.querySelector('[data-act="edit"]').addEventListener("click", () => {
+          fillWishForm(w);
+          wishItem.scrollIntoView({ behavior:"smooth", block:"center" });
+        });
+
+        div.querySelector('[data-act="buy"]').addEventListener("click", () => {
+          state.wishlist = state.wishlist.map(x => x.id === w.id ? { ...x, status:"bought", purchasedAt: nowISO() } : x);
+          save();
+          renderAll();
+        });
+
+        div.querySelector('[data-act="toExpense"]').addEventListener("click", () => {
+          // convierte a egreso variable por default, fecha hoy (o fecha activa si es del mes actual)
+          const amount = safeNumber(w.price);
+          if(amount <= 0){
+            alert("Primero cargá un precio estimado para convertirlo a gasto.");
+            return;
+          }
+          const date = state.settings.activeDate || toYMD(new Date());
+
+          const tx = {
+            id: uid("tx"),
+            date,
+            type: "expense",
+            kind: "variable",
+            category: "Compras",
+            amount,
+            note: `Wishlist: ${w.item}`,
+            createdAt: nowISO()
+          };
+          state.transactions.push(tx);
+
+          // opcional: marcar comprado
+          state.wishlist = state.wishlist.map(x => x.id === w.id ? { ...x, status:"bought", purchasedAt: nowISO() } : x);
+
+          // mover mes si hace falta
+          const d = parseYMD(date);
+          state.settings.year = d.getFullYear();
+          state.settings.monthIndex = d.getMonth();
+
+          save();
+          renderAll();
+          alert("Convertido a gasto (categoría: Compras).");
+        });
+
+        div.querySelector('[data-act="del"]').addEventListener("click", () => {
+          if(!confirm("¿Borrar este deseo?")) return;
+          state.wishlist = state.wishlist.filter(x => x.id !== w.id);
+          save();
+          renderAll();
+        });
+
+        wishList.appendChild(div);
+      });
+    }
+
+    function escapeAttr(str){
+      return String(str).replace(/"/g, "&quot;");
+    }
+
+    // =========================
+    // 12) GRÁFICOS (Chart.js)
+    // =========================
+    let chartMonthInst = null;
+    let chartYearInst = null;
+    let chartICInst = null;
+
+    function destroyChart(inst){
+      if(inst){ inst.destroy(); }
+      return null;
+    }
+
+    function renderCharts(){
+      renderChartMonth();
+      renderChartYear();
+    }
+
+    function renderChartMonth(){
+      const y = state.settings.year;
+      const m = state.settings.monthIndex;
+      const t = totalsForMonth(y, m);
+
+      const ctx = el("chartMonth").getContext("2d");
+      chartMonthInst = destroyChart(chartMonthInst);
+
+      chartMonthInst = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Ingresos", "Gastos"],
+          datasets: [
+            {
+              label: "Fijos",
+              data: [t.incomeFixed, t.expFixed],
+              stack: "stack1",
+              borderWidth: 1
+            },
+            {
+              label: "Variables",
+              data: [t.incomeVar, t.expVar],
+              stack: "stack1",
+              borderWidth: 1
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          devicePixelRatio: Math.max(1, window.devicePixelRatio || 1),
+          plugins: {
+            legend: { position: "top" },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${fmtEUR(ctx.parsed.y)}`
+              }
+            }
+          },
+          scales: {
+            x: { stacked: true },
+            y: {
+              stacked: true,
+              ticks: { callback: (v) => new Intl.NumberFormat("es-ES").format(v) },
+              grid: { color: "rgba(30,90,140,.10)" }
+            }
+          }
+        }
+      });
+    }
+
+    function renderChartYear(){
+      const y = state.settings.year;
+      const s = annualSeries(y);
+
+      const ctx = el("chartYear").getContext("2d");
+      chartYearInst = destroyChart(chartYearInst);
+
+      chartYearInst = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: MONTHS,
+          datasets: [
+            {
+              label: "Gastos",
+              data: s.expenses,
+              tension: 0.25,
+              borderWidth: 2,
+              pointRadius: 3
+            },
+            {
+              label: "Ingresos",
+              data: s.incomes,
+              tension: 0.25,
+              borderWidth: 2,
+              pointRadius: 3
+            },
+            {
+              label: "Balance",
+              data: s.balance,
+              tension: 0.25,
+              borderWidth: 2,
+              pointRadius: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          devicePixelRatio: Math.max(1, window.devicePixelRatio || 1),
+          plugins: {
+            legend: { position: "top" },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${fmtEUR(ctx.parsed.y)}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              ticks: { callback: (v) => new Intl.NumberFormat("es-ES").format(v) },
+              grid: { color: "rgba(30,90,140,.10)" }
+            },
+            x: { grid: { display:false } }
+          }
+        }
+      });
+    }
+
+    // =========================
+    // 13) INTERÉS COMPUESTO
+    // =========================
+    function computeCompound(){
+      const P = safeNumber(icPrincipal.value);
+      const PMT = safeNumber(icMonthly.value);
+      const rAnnual = safeNumber(icRate.value) / 100;
+      const years = clamp(safeNumber(icYears.value), 1, 60);
+      const freq = clamp(safeNumber(icFreq.value), 1, 12);
+
+      const months = years * 12;
+      const rPerYear = rAnnual;
+
+      // Usamos capitalización 'freq' por año y aportes mensuales.
+      // Para simplificar: convertimos a tasa efectiva mensual aproximada desde tasa nominal anual:
+      // i_m = (1 + rAnnual/freq)^(freq/12) - 1
+      const iMonthly = Math.pow(1 + (rPerYear / freq), (freq / 12)) - 1;
+
+      let value = P;
+      const series = [];
+      const labels = [];
+
+      let totalContrib = P;
+
+      for(let m=1; m<=months; m++){
+        value = value * (1 + iMonthly);  // interés
+        value += PMT;                   // aporte al final de mes
+        totalContrib += PMT;
+
+        if(m % 1 === 0){
+          series.push(value);
+          labels.push(m);
+        }
+      }
+
+      const interest = value - totalContrib;
+
+      icFinal.textContent = fmtEUR(value);
+      icContrib.textContent = fmtEUR(totalContrib);
+      icInterest.textContent = fmtEUR(interest);
+      icFinalHint.textContent = `Tasa mensual estimada: ${(iMonthly*100).toFixed(3)}% · Meses: ${months}`;
+
+      // render chart
+      const ctx = el("chartIC").getContext("2d");
+      chartICInst = destroyChart(chartICInst);
+
+      chartICInst = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "Evolución (€)",
+            data: series,
+            tension: 0.25,
+            borderWidth: 2,
+            pointRadius: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          devicePixelRatio: Math.max(1, window.devicePixelRatio || 1),
+          plugins: {
+            legend: { position: "top" },
+            tooltip: {
+              callbacks: { label: (ctx) => `${fmtEUR(ctx.parsed.y)}` }
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                callback: (v, i) => (i % 12 === 0 ? `Mes ${labels[i]}` : "")
+              },
+              grid: { display:false }
+            },
+            y: {
+              ticks: { callback: (v) => new Intl.NumberFormat("es-ES").format(v) },
+              grid: { color: "rgba(30,90,140,.10)" }
+            }
+          }
+        }
+      });
+    }
+
+    btnIcRun.addEventListener("click", () => computeCompound());
+
+    // =========================
+    // 14) EXPORT / IMPORT JSON
+    // =========================
+    function updateDataStatus(){
+      const tx = state.transactions.length;
+      const tpl = state.templates.length;
+      const w = state.wishlist.length;
+      dataStatus.textContent = `Tx: ${tx} · Fijos: ${tpl} · Wish: ${w}`;
+    }
+
+    btnExport.addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type:"application/json" });
+      const a = document.createElement("a");
+      const y = state.settings.year;
+      const m = pad2(state.settings.monthIndex+1);
+      a.href = URL.createObjectURL(blob);
+      a.download = `control-gastos_${y}-${m}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    });
+
+    importFile.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if(!file) return;
+      try{
+        const text = await file.text();
+        const incoming = JSON.parse(text);
+
+        // validación mínima
+        if(!incoming || typeof incoming !== "object") throw new Error("JSON inválido.");
+        if(!incoming.meta || typeof incoming.meta !== "object") throw new Error("Falta meta.");
+        if(incoming.meta.schemaVersion !== SCHEMA_VERSION) {
+          throw new Error(`SchemaVersion incompatible. Esperado: ${SCHEMA_VERSION}. Encontrado: ${incoming.meta.schemaVersion}`);
+        }
+
+        snapshot();        // seguridad
+        state = incoming;  // reemplazo total
+        save();
+        renderAll();
+        alert("Importación OK. Datos reemplazados.");
+      }catch(err){
+        console.error(err);
+        alert("Error al importar: " + (err.message || err));
+      }finally{
+        importFile.value = "";
+      }
+    });
+
+    btnReset.addEventListener("click", () => {
+      if(!confirm("Esto borrará todos los datos guardados en esta PC. ¿Continuar?")) return;
+      snapshot();
+      state = defaultData();
+      save();
+      renderAll();
+    });
+
+    // =========================
+    // 15) NAVEGACIÓN MESES + HOY
+    // =========================
+    btnPrevMonth.addEventListener("click", () => {
+      let y = state.settings.year;
+      let m = state.settings.monthIndex - 1;
+      if(m < 0){ m = 11; y -= 1; }
+      state.settings.year = y;
+      state.settings.monthIndex = m;
+      state.settings.activeDate = `${y}-${pad2(m+1)}-01`;
+      applyTemplatesForCurrentMonth();
+      save();
+      renderAll();
+    });
+
+    btnNextMonth.addEventListener("click", () => {
+      let y = state.settings.year;
+      let m = state.settings.monthIndex + 1;
+      if(m > 11){ m = 0; y += 1; }
+      state.settings.year = y;
+      state.settings.monthIndex = m;
+      state.settings.activeDate = `${y}-${pad2(m+1)}-01`;
+      applyTemplatesForCurrentMonth();
+      save();
+      renderAll();
+    });
+
+    btnToday.addEventListener("click", () => {
+      const d = new Date();
+      state.settings.year = d.getFullYear();
+      state.settings.monthIndex = d.getMonth();
+      state.settings.activeDate = toYMD(d);
+      applyTemplatesForCurrentMonth();
+      save();
+      renderAll();
+      txDate.value = state.settings.activeDate;
+    });
+
+    btnQuickAdd.addEventListener("click", () => {
+      // setea el form al día activo
+      txDate.value = state.settings.activeDate || toYMD(new Date());
+      txCategory.focus();
+      txCategory.scrollIntoView({ behavior:"smooth", block:"center" });
+    });
+
+    yearInput.addEventListener("change", () => {
+      const y = clamp(safeNumber(yearInput.value), 2000, 2100);
+      state.settings.year = y;
+      // mantener mes
+      // asegurar activeDate en el año/mes actual:
+      state.settings.activeDate = `${y}-${pad2(state.settings.monthIndex+1)}-01`;
+      applyTemplatesForCurrentMonth();
+      save();
+      renderAll();
+    });
+
+    filterType.addEventListener("change", () => {
+      state.settings.filterType = filterType.value;
+      save();
+      renderAll();
+    });
+
+    // =========================
+    // 16) RENDER GLOBAL
+    // =========================
+    function renderAll(){
+      // 1) asegurar plantillas aplicadas al mes actual
+      applyTemplatesForCurrentMonth();
+
+      // 2) top + calendario
+      renderTop();
+      renderCalendar();
+
+      // 3) KPIs + lista día
+      renderKPIs();
+      renderDayList();
+
+      // 4) plantillas + wishlist
+      renderTemplates();
+      renderWishlist();
+
+      // 5) charts
+      renderCharts();
+
+      // 6) status
+      updateDataStatus();
+
+      // 7) si el activeDate no está seteado, setearlo
+      if(!state.settings.activeDate){
+        state.settings.activeDate = toYMD(new Date());
+      }
+
+      // 8) fecha por defecto en form
+      if(!txDate.value) txDate.value = state.settings.activeDate;
+
+      save(); // garantiza coherencia updatedAt + persistencia
+    }
+
+    // =========================
+    // 17) BOOT
+    // =========================
+    function boot(){
+      initMonths();
+      initDOW();
+
+      // defaults UI
+      if(!state.settings.activeDate) state.settings.activeDate = toYMD(new Date());
+      txDate.value = state.settings.activeDate;
+
+      // aplicar plantillas al iniciar
+      applyTemplatesForCurrentMonth();
+
+      // interés compuesto inicial (no molesta)
+      computeCompound();
+
+      // render inicial
+      renderAll();
+      clearTxForm();
+      clearTplForm();
+      clearWishForm();
+    }
+
+    // re-render charts en resize (HD / responsive)
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        renderCharts();
+        if(chartICInst) computeCompound();
+      }, 200);
+    });
+
+    boot();
+    
+/* =========================
+   PWA - SERVICE WORKER
+========================= */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("./service-worker.js")
+      .then(() => console.log("Service Worker registrado OK"))
+      .catch(err => console.error("Error Service Worker:", err));
+  });
+}
+
+  </script>
+<link rel="manifest" href="./manifest.json">
+</body>
+</html>
